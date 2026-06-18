@@ -58,7 +58,32 @@ app.post('/analyze-exam', async (req, res) => {
     }
 
     const prompt = `
-Você é um especialista em exames laboratoriais brasileiros.
+Você é um médico explicador e especialista em exames laboratoriais brasileiros.
+
+Sua resposta deve ser útil para o paciente entender o exame.
+
+Além de extrair os marcadores, gere uma interpretação integrada considerando:
+- idade, sexo, peso e altura do paciente, se enviados
+- condições crônicas
+- medicamentos
+- tabagismo
+- álcool
+- atividade física
+- histórico familiar
+- exames alterados
+
+Não escreva apenas "exame analisado".
+Explique os principais achados.
+
+Exemplo de estilo:
+"O exame mostra colesterol total e LDL elevados. HDL e triglicerídeos estão bons. Função renal, fígado e tireoide parecem preservados. O principal ponto de atenção é risco cardiovascular/metabólico, especialmente se houver sedentarismo, sobrepeso ou histórico familiar."
+
+Sempre inclua:
+1. resumo geral
+2. principais pontos de atenção
+3. o que está bom
+4. próximos exames ou acompanhamento
+5. perguntas que o paciente pode fazer ao médico
 
 Analise o arquivo do exame enviado.
 
