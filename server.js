@@ -44,9 +44,9 @@ app.post('/analyze-exam', async (req, res) => {
     const uploadRes = await fetch('https://api.openai.com/v1/files', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${apiKey}`,
       },
-      body: form
+      body: form,
     })
 
     const uploadJson = await uploadRes.json()
@@ -104,27 +104,18 @@ Responda SOMENTE JSON válido:
       "context": "por que esse marcador importa"
     }
   ],
-  "nextSteps": [
-    "ação prática 1",
-    "ação prática 2",
-    "ação prática 3"
-  ],
-  "questionsForDoctor": [
-    "pergunta útil para levar ao médico"
-  ],
-  "lifestyleSuggestions": [
-    "sugestão de hábito baseada no exame"
-  ],
+  "nextSteps": ["ação prática 1", "ação prática 2", "ação prática 3"],
+  "questionsForDoctor": ["pergunta útil para levar ao médico"],
+  "lifestyleSuggestions": ["sugestão de hábito baseada no exame"],
   "extractedText": "texto relevante extraído"
 }
-`
 `
 
     const openaiRes = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: 'gpt-4.1-mini',
@@ -133,11 +124,11 @@ Responda SOMENTE JSON válido:
             role: 'user',
             content: [
               { type: 'input_text', text: prompt },
-              { type: 'input_file', file_id: uploadJson.id }
-            ]
-          }
-        ]
-      })
+              { type: 'input_file', file_id: uploadJson.id },
+            ],
+          },
+        ],
+      }),
     })
 
     const json = await openaiRes.json()
@@ -161,33 +152,123 @@ Responda SOMENTE JSON válido:
       parsed = fallback(text || 'IA não retornou JSON válido.')
     }
 
-  return res.json({
-  summary: parsed.summary || 'Exame analisado.',
-  clinicalSummary: parsed.clinicalSummary || '',
-  mainAlerts: Array.isArray(parsed.mainAlerts) ? parsed.mainAlerts : [],
-  goodNews: Array.isArray(parsed.goodNews) ? parsed.goodNews : [],
-  riskAreas: Array.isArray(parsed.riskAreas) ? parsed.riskAreas : [],
-  examType: parsed.examType || 'Exame',
-  examDate: parsed.examDate || null,
-  laboratory: parsed.laboratory || null,
-  patientName: parsed.patientName || null,
-  confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
-  items: Array.isArray(parsed.items) ? parsed.items : [],
-  nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : [],
-  questionsForDoctor: Array.isArray(parsed.questionsForDoctor) ? parsed.questionsForDoctor : [],
-  lifestyleSuggestions: Array.isArray(parsed.lifestyleSuggestions) ? parsed.lifestyleSuggestions : [],
-  extractedText: parsed.extractedText || '',
-  error: parsed.error || null
-})
+    return res.json(normalizeExamAnalysis(parsed))
   } catch (error) {
     return res.json(fallback(error.message || 'Erro inesperado.'))
   }
 })
 
+app.post('/ask-exam', async (req, res) => {
+  try {
+    const { question, exam, profile, history } = req.body || {}
+
+    if (!question || !exam) {
+      return res.json({
+        answer: 'Não recebi pergunta ou dados do exame suficientes para responder.',
+      })
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY
+
+    if (!apiKey) {
+      return res.json({
+        answer: 'OPENAI_API_KEY não configurada no Render.',
+      })
+    }
+
+    const prompt = `
+Você é um Health Coach e médico explicador.
+
+O paciente está conversando sobre um exame já analisado.
+
+IMPORTANTE:
+- NÃO repita o resumo inteiro do exame.
+- Responda diretamente à pergunta.
+- Use apenas os marcadores relevantes.
+- Seja prático, claro e personalizado.
+- Não dê diagnóstico definitivo.
+- Não substitua consulta médica.
+- Se a pergunta for sobre colesterol, fale sobre LDL, HDL, triglicerídeos, dieta, exercício, peso, risco cardiovascular e exames complementares quando fizer sentido.
+- Se a pergunta for sobre exames adicionais, sugira exames complementares coerentes com os achados.
+- Mantenha tom humano, objetivo e útil.
+
+Perfil do paciente:
+${JSON.stringify(profile || {}, null, 2)}
+
+Exame analisado:
+${JSON.stringify(exam || {}, null, 2)}
+
+Histórico da conversa:
+${JSON.stringify(history || [], null, 2)}
+
+Pergunta do paciente:
+${question}
+
+Responda em português do Brasil.
+`
+
+    const openaiRes = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1-mini',
+        input: prompt,
+      }),
+    })
+
+    const json = await openaiRes.json()
+
+    if (!openaiRes.ok) {
+      return res.json({
+        answer: json.error?.message || 'Erro ao responder sobre o exame.',
+      })
+    }
+
+    const answer =
+      json.output_text ||
+      json.output?.[0]?.content?.[0]?.text ||
+      'Não consegui gerar uma resposta agora.'
+
+    return res.json({ answer })
+  } catch (error) {
+    return res.json({
+      answer: error.message || 'Erro inesperado ao responder sobre o exame.',
+    })
+  }
+})
+
+function normalizeExamAnalysis(parsed) {
+  return {
+    summary: parsed.summary || 'Exame analisado.',
+    clinicalSummary: parsed.clinicalSummary || '',
+    mainAlerts: Array.isArray(parsed.mainAlerts) ? parsed.mainAlerts : [],
+    goodNews: Array.isArray(parsed.goodNews) ? parsed.goodNews : [],
+    riskAreas: Array.isArray(parsed.riskAreas) ? parsed.riskAreas : [],
+    examType: parsed.examType || 'Exame',
+    examDate: parsed.examDate || null,
+    laboratory: parsed.laboratory || null,
+    patientName: parsed.patientName || null,
+    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
+    items: Array.isArray(parsed.items) ? parsed.items : [],
+    nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : [],
+    questionsForDoctor: Array.isArray(parsed.questionsForDoctor) ? parsed.questionsForDoctor : [],
+    lifestyleSuggestions: Array.isArray(parsed.lifestyleSuggestions) ? parsed.lifestyleSuggestions : [],
+    extractedText: parsed.extractedText || '',
+    error: parsed.error || null,
+  }
+}
+
 function fallback(reason) {
   return {
     summary:
       'Exame recebido com sucesso, mas a análise automática não conseguiu interpretar o arquivo.',
+    clinicalSummary: '',
+    mainAlerts: [],
+    goodNews: [],
+    riskAreas: [],
     examType: null,
     examDate: null,
     laboratory: null,
@@ -196,10 +277,12 @@ function fallback(reason) {
     items: [],
     nextSteps: [
       'Tente enviar PDF pesquisável ou imagem/foto nítida.',
-      'Leve o exame para avaliação de um profissional de saúde.'
+      'Leve o exame para avaliação de um profissional de saúde.',
     ],
+    questionsForDoctor: [],
+    lifestyleSuggestions: [],
     extractedText: reason,
-    error: reason
+    error: reason,
   }
 }
 
