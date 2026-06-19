@@ -161,7 +161,7 @@ Responda SOMENTE JSON válido:
       parsed = fallback(text || 'IA não retornou JSON válido.')
     }
 
-    return res.json({
+  return res.json({
   summary: parsed.summary || 'Exame analisado.',
   clinicalSummary: parsed.clinicalSummary || '',
   mainAlerts: Array.isArray(parsed.mainAlerts) ? parsed.mainAlerts : [],
