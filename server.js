@@ -60,53 +60,34 @@ app.post('/analyze-exam', async (req, res) => {
     const prompt = `
 Você é um médico explicador e especialista em exames laboratoriais brasileiros.
 
-Sua resposta deve ser útil para o paciente entender o exame.
+Analise o exame enviado e gere uma interpretação útil, clara e personalizada.
 
-Além de extrair os marcadores, gere uma interpretação integrada considerando:
-- idade, sexo, peso e altura do paciente, se enviados
-- condições crônicas
-- medicamentos
-- tabagismo
-- álcool
-- atividade física
-- histórico familiar
-- exames alterados
-
-Não escreva apenas "exame analisado".
-Explique os principais achados.
-
-Exemplo de estilo:
-"O exame mostra colesterol total e LDL elevados. HDL e triglicerídeos estão bons. Função renal, fígado e tireoide parecem preservados. O principal ponto de atenção é risco cardiovascular/metabólico, especialmente se houver sedentarismo, sobrepeso ou histórico familiar."
-
-Sempre inclua:
-1. resumo geral
-2. principais pontos de atenção
-3. o que está bom
-4. próximos exames ou acompanhamento
-5. perguntas que o paciente pode fazer ao médico
-
-Analise o arquivo do exame enviado.
-
-Extraia TODOS os dados possíveis:
-- tipo do exame
-- data do exame
-- laboratório
-- paciente, se visível
-- todos os marcadores
-- valor
-- unidade
-- referência
-- status: normal, alto, baixo ou atencao
-- explicação simples
-- contexto clínico
-- próximos passos
-
-Use também o contexto do paciente, se disponível:
+Use também o contexto do paciente:
 ${JSON.stringify(profile || {}, null, 2)}
+
+Objetivo:
+Não apenas extrair valores. Explique o que o exame mostra, o que está bom, o que merece atenção, quais riscos podem estar relacionados e quais próximos passos fazem sentido.
+
+Regras:
+- Não dê diagnóstico definitivo.
+- Não substitua consulta médica.
+- Não assuste o paciente.
+- Seja claro e prático.
+- Se houver colesterol/LDL alto, explique risco cardiovascular.
+- Se glicemia estiver alterada, explique risco metabólico.
+- Se creatinina/TFG vier alterada, explique função renal.
+- Se TGO/TGP vier alterado, explique fígado.
+- Se TSH vier alterado, explique tireoide.
+- Se hemograma vier alterado, explique anemia/infecção/plaquetas conforme o marcador.
+- Se houver marcadores normais importantes, destaque também.
 
 Responda SOMENTE JSON válido:
 {
-  "summary": "resumo claro para paciente",
+  "summary": "análise integrada do exame em linguagem simples, mencionando principais achados, pontos bons e pontos de atenção",
+  "clinicalSummary": "resumo mais técnico para profissional de saúde",
+  "mainAlerts": ["principal alerta 1", "principal alerta 2"],
+  "goodNews": ["ponto positivo 1", "ponto positivo 2"],
+  "riskAreas": ["cardiovascular", "metabólico", "renal", "hepático", "tireoide", "hematológico"],
   "examType": "tipo do exame",
   "examDate": null,
   "laboratory": null,
@@ -119,16 +100,24 @@ Responda SOMENTE JSON válido:
       "unit": "unidade",
       "reference": "referência",
       "status": "normal|alto|baixo|atencao",
-      "explanation": "explicação simples",
-      "context": "contexto clínico sem diagnóstico"
+      "explanation": "explicação simples para paciente",
+      "context": "por que esse marcador importa"
     }
   ],
-  "nextSteps": ["orientação 1", "orientação 2"],
+  "nextSteps": [
+    "ação prática 1",
+    "ação prática 2",
+    "ação prática 3"
+  ],
+  "questionsForDoctor": [
+    "pergunta útil para levar ao médico"
+  ],
+  "lifestyleSuggestions": [
+    "sugestão de hábito baseada no exame"
+  ],
   "extractedText": "texto relevante extraído"
 }
-
-Não dê diagnóstico.
-Não substitua consulta médica.
+`
 `
 
     const openaiRes = await fetch('https://api.openai.com/v1/responses', {
@@ -173,17 +162,23 @@ Não substitua consulta médica.
     }
 
     return res.json({
-      summary: parsed.summary || 'Exame analisado.',
-      examType: parsed.examType || 'Exame',
-      examDate: parsed.examDate || null,
-      laboratory: parsed.laboratory || null,
-      patientName: parsed.patientName || null,
-      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
-      items: Array.isArray(parsed.items) ? parsed.items : [],
-      nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : [],
-      extractedText: parsed.extractedText || '',
-      error: parsed.error || null
-    })
+  summary: parsed.summary || 'Exame analisado.',
+  clinicalSummary: parsed.clinicalSummary || '',
+  mainAlerts: Array.isArray(parsed.mainAlerts) ? parsed.mainAlerts : [],
+  goodNews: Array.isArray(parsed.goodNews) ? parsed.goodNews : [],
+  riskAreas: Array.isArray(parsed.riskAreas) ? parsed.riskAreas : [],
+  examType: parsed.examType || 'Exame',
+  examDate: parsed.examDate || null,
+  laboratory: parsed.laboratory || null,
+  patientName: parsed.patientName || null,
+  confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
+  items: Array.isArray(parsed.items) ? parsed.items : [],
+  nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : [],
+  questionsForDoctor: Array.isArray(parsed.questionsForDoctor) ? parsed.questionsForDoctor : [],
+  lifestyleSuggestions: Array.isArray(parsed.lifestyleSuggestions) ? parsed.lifestyleSuggestions : [],
+  extractedText: parsed.extractedText || '',
+  error: parsed.error || null
+})
   } catch (error) {
     return res.json(fallback(error.message || 'Erro inesperado.'))
   }
